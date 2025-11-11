@@ -50,8 +50,12 @@ def analyze_video():
         rating_calc = RatingCalculator()
         final_results = rating_calc.calculate_overall_rating(analysis_results)
         
-        # Add video info
+        # Add video info and angle information
         final_results['video_filename'] = filename
+        if 'video_angle' in analysis_results:
+            final_results['video_angle'] = analysis_results['video_angle']
+        if 'angle_warning' in analysis_results:
+            final_results['angle_warning'] = analysis_results['angle_warning']
         
         # Clean up uploaded file (optional - you might want to keep it)
         # os.remove(filepath)

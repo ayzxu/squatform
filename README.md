@@ -15,7 +15,7 @@ A web application that analyzes squat form from uploaded videos using pose estim
 
 ## Installation
 
-1. Install Python 3.8 or higher
+1. Install Python 3.8-3.12 (since MediaPipe does not support Python 3.13+)
 
 2. Install dependencies:
 ```bash

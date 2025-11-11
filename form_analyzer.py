@@ -1,12 +1,14 @@
 import numpy as np
 from typing import List, Dict, Optional, Tuple
 from pose_detector import PoseDetector
+from angle_normalizer import AngleNormalizer
 
 class FormAnalyzer:
     """Analyzes squat form based on pose keypoints."""
     
     def __init__(self):
         self.pose_detector = PoseDetector()
+        self.angle_normalizer = AngleNormalizer()
     
     def analyze_squat(self, video_path: str) -> Dict:
         """
@@ -27,27 +29,31 @@ class FormAnalyzer:
                 'score': 0
             }
         
-        # Find the bottom of the squat (lowest hip position)
-        bottom_frame_idx = self._find_bottom_frame(frames_keypoints)
+        # Detect angle and normalize keypoints
+        normalized_keypoints = self.angle_normalizer.detect_and_normalize(frames_keypoints)
+        angle_info = self.angle_normalizer.get_angle_info()
         
-        # Calculate metrics
+        # Find the bottom of the squat (lowest hip position)
+        bottom_frame_idx = self._find_bottom_frame(normalized_keypoints)
+        
+        # Calculate metrics using normalized keypoints
         knee_tracking_score, knee_tracking_feedback = self._analyze_knee_tracking(
-            frames_keypoints, bottom_frame_idx
+            normalized_keypoints, bottom_frame_idx
         )
         
         back_angle_score, back_angle_feedback = self._analyze_back_angle(
-            frames_keypoints, bottom_frame_idx
+            normalized_keypoints, bottom_frame_idx
         )
         
         depth_score, depth_feedback = self._analyze_depth(
-            frames_keypoints, bottom_frame_idx
+            normalized_keypoints, bottom_frame_idx
         )
         
         alignment_score, alignment_feedback = self._analyze_alignment(
-            frames_keypoints, bottom_frame_idx
+            normalized_keypoints, bottom_frame_idx
         )
         
-        return {
+        result = {
             'knee_tracking': {
                 'score': knee_tracking_score,
                 'feedback': knee_tracking_feedback
@@ -65,8 +71,16 @@ class FormAnalyzer:
                 'feedback': alignment_feedback
             },
             'bottom_frame_idx': bottom_frame_idx,
-            'total_frames': len(frames_keypoints)
+            'total_frames': len(normalized_keypoints),
+            # Add angle information
+            'video_angle': angle_info
         }
+        
+        # Add warning if angle is not ideal
+        if angle_info.get('warning'):
+            result['angle_warning'] = angle_info['warning']
+        
+        return result
     
     def _find_bottom_frame(self, frames_keypoints: List[Dict]) -> int:
         """

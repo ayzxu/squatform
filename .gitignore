@@ -14,3 +14,6 @@ uploads/
 *.mkv
 .DS_Store
 
+# Virtual environment
+venv/
+

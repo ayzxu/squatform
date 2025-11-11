@@ -105,6 +105,26 @@ function displayResults(data) {
     document.getElementById('overallScore').textContent = data.overall_score;
     document.getElementById('ratingBadge').textContent = data.rating;
     
+    // Display angle information
+    const angleInfo = document.getElementById('angleInfo');
+    const angleText = document.getElementById('angleText');
+    
+    if (data.video_angle) {
+        if (data.video_angle.warning) {
+            angleInfo.style.display = 'block';
+            angleText.textContent = data.video_angle.warning;
+            angleText.style.color = '#ff6b6b';
+        } else if (data.video_angle.is_ideal) {
+            angleInfo.style.display = 'block';
+            angleText.textContent = '✓ Side view detected - optimal angle for analysis';
+            angleText.style.color = '#51cf66';
+        } else {
+            angleInfo.style.display = 'none';
+        }
+    } else {
+        angleInfo.style.display = 'none';
+    }
+    
     // Set feedback
     document.getElementById('feedbackText').textContent = data.feedback;
     
@@ -148,6 +168,8 @@ function hideError() {
 
 function hideResults() {
     results.style.display = 'none';
+    // Also hide angle info when hiding results
+    document.getElementById('angleInfo').style.display = 'none';
 }
 
 // Reset button handler
