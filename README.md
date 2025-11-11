@@ -36,7 +36,11 @@ http://127.0.0.1:5000
 
 3. Upload a video file (MP4, AVI, MOV, MKV, or WEBM, max 100MB)
 
+![Upload Interface](images/upload.png)
+
 4. Click "Analyze Squat Form" to get your results
+
+![Analysis in Progress](images/analyze.png)
 
 ## How It Works
 
@@ -45,6 +49,10 @@ http://127.0.0.1:5000
 3. **Form Analysis**: The system analyzes key metrics at the bottom of the squat
 4. **Rating Calculation**: Individual metric scores are weighted and combined into an overall score
 5. **Results Display**: Score, feedback, and detailed metrics are shown in the web interface
+
+![Rating Display](images/rating.png)
+
+![Feedback Section](images/feedback.png)
 
 ## Project Structure
 
