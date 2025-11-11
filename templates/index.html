@@ -9,8 +9,8 @@
 <body>
     <div class="container">
         <header>
-            <h1>🏋️ Squat Form Analyzer</h1>
-            <p>Upload a video of your squat to get instant form analysis and feedback</p>
+            <h1>Squat Form Analyzer</h1>
+            <p>Form analysis and feedback</p>
         </header>
 
         <main>
@@ -37,6 +37,7 @@
             <div class="loading" id="loading" style="display: none;">
                 <div class="spinner"></div>
                 <p>Analyzing your squat form...</p>
+                <p class="loading-subtext">Detecting pose and generating snapshots</p>
             </div>
 
             <div class="results" id="results" style="display: none;">
@@ -61,6 +62,12 @@
                     <div class="feedback-text" id="feedbackText"></div>
                 </div>
 
+                <div class="snapshots-section" id="snapshotsSection" style="display: none;">
+                    <h3>Analysis Snapshots</h3>
+                    <p class="snapshots-description">See how the model detected your pose at key moments</p>
+                    <div class="snapshots-grid" id="snapshotsGrid"></div>
+                </div>
+
                 <div class="metrics-section">
                     <h3>Detailed Metrics</h3>
                     <div class="metrics-grid" id="metricsGrid"></div>
@@ -73,6 +80,22 @@
                 <p id="errorMessage"></p>
             </div>
         </main>
+    </div>
+
+    <!-- Lightbox Modal -->
+    <div class="lightbox" id="lightbox" style="display: none;">
+        <div class="lightbox-content">
+            <span class="lightbox-close" id="lightboxClose">&times;</span>
+            <div class="lightbox-image-container">
+                <img class="lightbox-image" id="lightboxImage" src="" alt="">
+                <button class="lightbox-rotate-btn" id="lightboxRotateBtn" title="Rotate image">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="lightbox-info" id="lightboxInfo"></div>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>

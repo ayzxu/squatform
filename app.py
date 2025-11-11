@@ -56,6 +56,9 @@ def analyze_video():
             final_results['video_angle'] = analysis_results['video_angle']
         if 'angle_warning' in analysis_results:
             final_results['angle_warning'] = analysis_results['angle_warning']
+        # Add snapshots if available
+        if 'snapshots' in analysis_results:
+            final_results['snapshots'] = analysis_results['snapshots']
         
         # Clean up uploaded file (optional - you might want to keep it)
         # os.remove(filepath)

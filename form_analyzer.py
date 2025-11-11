@@ -1,4 +1,6 @@
 import numpy as np
+import cv2
+import base64
 from typing import List, Dict, Optional, Tuple
 from pose_detector import PoseDetector
 from angle_normalizer import AngleNormalizer
@@ -10,18 +12,23 @@ class FormAnalyzer:
         self.pose_detector = PoseDetector()
         self.angle_normalizer = AngleNormalizer()
     
-    def analyze_squat(self, video_path: str) -> Dict:
+    def analyze_squat(self, video_path: str, include_snapshots: bool = True) -> Dict:
         """
         Analyze squat form from video.
         
         Args:
             video_path: Path to the input video file
+            include_snapshots: If True, include snapshot frames with pose overlays
             
         Returns:
             Dictionary containing analysis results with metrics and scores
         """
-        # Extract keypoints from video
-        frames_keypoints = self.pose_detector.process_video(video_path)
+        # Extract keypoints from video (with frames if snapshots requested)
+        if include_snapshots:
+            frames_keypoints, annotated_frames = self.pose_detector.process_video(video_path, return_frames=True)
+        else:
+            frames_keypoints = self.pose_detector.process_video(video_path)
+            annotated_frames = None
         
         if len(frames_keypoints) == 0:
             return {
@@ -34,7 +41,7 @@ class FormAnalyzer:
         angle_info = self.angle_normalizer.get_angle_info()
         
         # Find the bottom of the squat (lowest hip position)
-        bottom_frame_idx = self._find_bottom_frame(normalized_keypoints)
+        bottom_frame_idx = int(self._find_bottom_frame(normalized_keypoints))
         
         # Calculate metrics using normalized keypoints
         knee_tracking_score, knee_tracking_feedback = self._analyze_knee_tracking(
@@ -55,23 +62,23 @@ class FormAnalyzer:
         
         result = {
             'knee_tracking': {
-                'score': knee_tracking_score,
+                'score': float(knee_tracking_score),
                 'feedback': knee_tracking_feedback
             },
             'back_angle': {
-                'score': back_angle_score,
+                'score': float(back_angle_score),
                 'feedback': back_angle_feedback
             },
             'depth': {
-                'score': depth_score,
+                'score': float(depth_score),
                 'feedback': depth_feedback
             },
             'alignment': {
-                'score': alignment_score,
+                'score': float(alignment_score),
                 'feedback': alignment_feedback
             },
-            'bottom_frame_idx': bottom_frame_idx,
-            'total_frames': len(normalized_keypoints),
+            'bottom_frame_idx': int(bottom_frame_idx),
+            'total_frames': int(len(normalized_keypoints)),
             # Add angle information
             'video_angle': angle_info
         }
@@ -80,7 +87,269 @@ class FormAnalyzer:
         if angle_info.get('warning'):
             result['angle_warning'] = angle_info['warning']
         
+        # Generate snapshots if frames are available
+        if include_snapshots and annotated_frames:
+            try:
+                snapshots = self._generate_snapshots(annotated_frames, bottom_frame_idx, normalized_keypoints)
+                if snapshots:
+                    result['snapshots'] = snapshots
+            except Exception as e:
+                # Log error but don't fail the analysis
+                print(f"Warning: Failed to generate snapshots: {str(e)}")
+                result['snapshot_error'] = str(e)
+        
         return result
+    
+    def _generate_snapshots(self, annotated_frames: List, bottom_idx: int, keypoints: List[Dict]) -> Dict:
+        """
+        Generate snapshot frames at key points of the squat with angle annotations.
+        
+        Args:
+            annotated_frames: List of frames with pose overlays
+            bottom_idx: Index of the bottom frame
+            keypoints: List of keypoint dictionaries
+            
+        Returns:
+            Dictionary with base64-encoded snapshot images and angle data
+        """
+        snapshots = {}
+        total_frames = len(annotated_frames)
+        
+        # Snapshot 1: Start position (first 10% of video or first frame)
+        start_idx = int(min(5, total_frames - 1))
+        if start_idx < len(annotated_frames):
+            frame_with_angles = self._add_angle_annotations(
+                annotated_frames[start_idx].copy(), 
+                keypoints[start_idx]
+            )
+            snapshots['start'] = {
+                'frame_idx': int(start_idx),
+                'image': self._frame_to_base64(frame_with_angles),
+                'label': 'Start Position',
+                'angles': self._get_frame_angles(keypoints[start_idx])
+            }
+        
+        # Snapshot 2: Mid descent (25% of way to bottom)
+        mid_idx = int(start_idx + (bottom_idx - start_idx) // 4)
+        if 0 <= mid_idx < len(annotated_frames):
+            frame_with_angles = self._add_angle_annotations(
+                annotated_frames[mid_idx].copy(), 
+                keypoints[mid_idx]
+            )
+            snapshots['mid_descent'] = {
+                'frame_idx': int(mid_idx),
+                'image': self._frame_to_base64(frame_with_angles),
+                'label': 'Mid Descent',
+                'angles': self._get_frame_angles(keypoints[mid_idx])
+            }
+        
+        # Snapshot 3: Bottom position (most important)
+        bottom_idx_int = int(bottom_idx)
+        if 0 <= bottom_idx_int < len(annotated_frames):
+            bottom_frame = annotated_frames[bottom_idx_int].copy()
+            cv2.putText(bottom_frame, 'BOTTOM', (10, 30), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+            frame_with_angles = self._add_angle_annotations(
+                bottom_frame, 
+                keypoints[bottom_idx_int]
+            )
+            snapshots['bottom'] = {
+                'frame_idx': int(bottom_idx_int),
+                'image': self._frame_to_base64(frame_with_angles),
+                'label': 'Bottom Position',
+                'angles': self._get_frame_angles(keypoints[bottom_idx_int])
+            }
+        
+        # Snapshot 4: Mid ascent (75% of way back up)
+        end_idx = int(min(bottom_idx_int + (total_frames - bottom_idx_int) * 3 // 4, total_frames - 1))
+        if 0 <= end_idx < len(annotated_frames) and end_idx > bottom_idx_int:
+            frame_with_angles = self._add_angle_annotations(
+                annotated_frames[end_idx].copy(), 
+                keypoints[end_idx]
+            )
+            snapshots['mid_ascent'] = {
+                'frame_idx': int(end_idx),
+                'image': self._frame_to_base64(frame_with_angles),
+                'label': 'Mid Ascent',
+                'angles': self._get_frame_angles(keypoints[end_idx])
+            }
+        
+        # Snapshot 5: End position (last 10% of video or last frame)
+        end_idx = int(max(total_frames - 5, bottom_idx_int + 1))
+        if end_idx < len(annotated_frames):
+            frame_with_angles = self._add_angle_annotations(
+                annotated_frames[end_idx].copy(), 
+                keypoints[end_idx]
+            )
+            snapshots['end'] = {
+                'frame_idx': int(end_idx),
+                'image': self._frame_to_base64(frame_with_angles),
+                'label': 'End Position',
+                'angles': self._get_frame_angles(keypoints[end_idx])
+            }
+        
+        return snapshots
+    
+    def _get_frame_angles(self, keypoints: Dict) -> Dict:
+        """Calculate back angle and knee angles for a frame."""
+        angles = {
+            'back_angle': None,
+            'left_knee_angle': None,
+            'right_knee_angle': None
+        }
+        
+        # Calculate back angle
+        left_shoulder = keypoints.get('left_shoulder')
+        right_shoulder = keypoints.get('right_shoulder')
+        left_hip = keypoints.get('left_hip')
+        right_hip = keypoints.get('right_hip')
+        
+        if (left_shoulder or right_shoulder) and (left_hip or right_hip):
+            if left_shoulder and right_shoulder:
+                shoulder_x = (left_shoulder[0] + right_shoulder[0]) / 2
+                shoulder_y = (left_shoulder[1] + right_shoulder[1]) / 2
+            elif left_shoulder:
+                shoulder_x, shoulder_y = left_shoulder
+            else:
+                shoulder_x, shoulder_y = right_shoulder
+            
+            if left_hip and right_hip:
+                hip_x = (left_hip[0] + right_hip[0]) / 2
+                hip_y = (left_hip[1] + right_hip[1]) / 2
+            elif left_hip:
+                hip_x, hip_y = left_hip
+            else:
+                hip_x, hip_y = right_hip
+            
+            dx = shoulder_x - hip_x
+            dy = shoulder_y - hip_y
+            
+            if abs(dy) > 0.01:
+                angle_rad = np.arctan2(abs(dx), abs(dy))
+                angles['back_angle'] = float(np.degrees(angle_rad))
+        
+        # Calculate knee angles
+        left_hip_kp = keypoints.get('left_hip')
+        left_knee_kp = keypoints.get('left_knee')
+        left_ankle_kp = keypoints.get('left_ankle')
+        
+        if left_hip_kp and left_knee_kp and left_ankle_kp:
+            knee_angle = self._calculate_angle(left_hip_kp, left_knee_kp, left_ankle_kp)
+            if knee_angle is not None:
+                angles['left_knee_angle'] = float(knee_angle)
+        
+        right_hip_kp = keypoints.get('right_hip')
+        right_knee_kp = keypoints.get('right_knee')
+        right_ankle_kp = keypoints.get('right_ankle')
+        
+        if right_hip_kp and right_knee_kp and right_ankle_kp:
+            knee_angle = self._calculate_angle(right_hip_kp, right_knee_kp, right_ankle_kp)
+            if knee_angle is not None:
+                angles['right_knee_angle'] = float(knee_angle)
+        
+        return angles
+    
+    def _add_angle_annotations(self, frame, keypoints: Dict) -> np.ndarray:
+        """Add angle annotations (text and lines) to a frame."""
+        height, width = frame.shape[:2]
+        
+        # Get angles
+        angles = self._get_frame_angles(keypoints)
+        
+        # Draw back angle
+        if angles['back_angle'] is not None:
+            left_shoulder = keypoints.get('left_shoulder')
+            right_shoulder = keypoints.get('right_shoulder')
+            left_hip = keypoints.get('left_hip')
+            right_hip = keypoints.get('right_hip')
+            
+            if (left_shoulder or right_shoulder) and (left_hip or right_hip):
+                if left_shoulder and right_shoulder:
+                    shoulder_x = int((left_shoulder[0] + right_shoulder[0]) / 2 * width)
+                    shoulder_y = int((left_shoulder[1] + right_shoulder[1]) / 2 * height)
+                elif left_shoulder:
+                    shoulder_x = int(left_shoulder[0] * width)
+                    shoulder_y = int(left_shoulder[1] * height)
+                else:
+                    shoulder_x = int(right_shoulder[0] * width)
+                    shoulder_y = int(right_shoulder[1] * height)
+                
+                if left_hip and right_hip:
+                    hip_x = int((left_hip[0] + right_hip[0]) / 2 * width)
+                    hip_y = int((left_hip[1] + right_hip[1]) / 2 * height)
+                elif left_hip:
+                    hip_x = int(left_hip[0] * width)
+                    hip_y = int(left_hip[1] * height)
+                else:
+                    hip_x = int(right_hip[0] * width)
+                    hip_y = int(right_hip[1] * height)
+                
+                # Draw line from hip to shoulder
+                cv2.line(frame, (hip_x, hip_y), (shoulder_x, shoulder_y), (255, 255, 0), 3)
+                
+                # Draw angle text
+                text_x = (hip_x + shoulder_x) // 2
+                text_y = (hip_y + shoulder_y) // 2 - 10
+                cv2.putText(frame, f"Back: {angles['back_angle']:.1f}°", 
+                           (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+        
+        # Draw knee angles
+        if angles['left_knee_angle'] is not None:
+            left_hip_kp = keypoints.get('left_hip')
+            left_knee_kp = keypoints.get('left_knee')
+            left_ankle_kp = keypoints.get('left_ankle')
+            
+            if left_hip_kp and left_knee_kp and left_ankle_kp:
+                hip_pt = (int(left_hip_kp[0] * width), int(left_hip_kp[1] * height))
+                knee_pt = (int(left_knee_kp[0] * width), int(left_knee_kp[1] * height))
+                ankle_pt = (int(left_ankle_kp[0] * width), int(left_ankle_kp[1] * height))
+                
+                # Draw lines
+                cv2.line(frame, hip_pt, knee_pt, (0, 255, 255), 2)
+                cv2.line(frame, knee_pt, ankle_pt, (0, 255, 255), 2)
+                
+                # Draw angle text near knee
+                text_x = knee_pt[0] + 20
+                text_y = knee_pt[1] - 10
+                cv2.putText(frame, f"L Knee: {angles['left_knee_angle']:.1f}°", 
+                           (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+        
+        if angles['right_knee_angle'] is not None:
+            right_hip_kp = keypoints.get('right_hip')
+            right_knee_kp = keypoints.get('right_knee')
+            right_ankle_kp = keypoints.get('right_ankle')
+            
+            if right_hip_kp and right_knee_kp and right_ankle_kp:
+                hip_pt = (int(right_hip_kp[0] * width), int(right_hip_kp[1] * height))
+                knee_pt = (int(right_knee_kp[0] * width), int(right_knee_kp[1] * height))
+                ankle_pt = (int(right_ankle_kp[0] * width), int(right_ankle_kp[1] * height))
+                
+                # Draw lines
+                cv2.line(frame, hip_pt, knee_pt, (255, 0, 255), 2)
+                cv2.line(frame, knee_pt, ankle_pt, (255, 0, 255), 2)
+                
+                # Draw angle text near knee
+                text_x = knee_pt[0] - 100
+                text_y = knee_pt[1] - 10
+                cv2.putText(frame, f"R Knee: {angles['right_knee_angle']:.1f}°", 
+                           (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
+        
+        return frame
+    
+    def _frame_to_base64(self, frame) -> str:
+        """Convert a frame (numpy array) to base64-encoded JPEG string."""
+        # Resize frame if too large (max width 800px)
+        height, width = frame.shape[:2]
+        if width > 800:
+            scale = 800 / width
+            new_width = 800
+            new_height = int(height * scale)
+            frame = cv2.resize(frame, (new_width, new_height))
+        
+        # Encode frame as JPEG
+        _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        frame_base64 = base64.b64encode(buffer).decode('utf-8')
+        return f"data:image/jpeg;base64,{frame_base64}"
     
     def _find_bottom_frame(self, frames_keypoints: List[Dict]) -> int:
         """

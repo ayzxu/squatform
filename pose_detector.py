@@ -17,20 +17,23 @@ class PoseDetector:
         )
         self.mp_drawing = mp.solutions.drawing_utils
     
-    def process_video(self, video_path: str) -> List[Dict[str, Optional[Tuple[float, float]]]]:
+    def process_video(self, video_path: str, return_frames: bool = False) -> List[Dict[str, Optional[Tuple[float, float]]]]:
         """
         Process video and extract pose keypoints for each frame.
         
         Args:
             video_path: Path to the input video file
+            return_frames: If True, also return frames with pose overlays
             
         Returns:
             List of dictionaries containing keypoints for each frame.
             Each dict has keys like 'left_hip', 'right_knee', etc.
             Values are (x, y) tuples normalized to [0, 1] or None if not detected.
+            If return_frames is True, also returns a list of annotated frames.
         """
         cap = cv2.VideoCapture(video_path)
         frames_data = []
+        annotated_frames = []
         
         if not cap.isOpened():
             raise ValueError(f"Could not open video file: {video_path}")
@@ -49,9 +52,38 @@ class PoseDetector:
             # Extract keypoints
             frame_keypoints = self._extract_keypoints(results.pose_landmarks)
             frames_data.append(frame_keypoints)
+            
+            # If requested, draw pose on frame
+            if return_frames:
+                annotated_frame = frame.copy()
+                if results.pose_landmarks:
+                    self.mp_drawing.draw_landmarks(
+                        annotated_frame,
+                        results.pose_landmarks,
+                        self.mp_pose.POSE_CONNECTIONS,
+                        self.mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=2),
+                        self.mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2)
+                    )
+                annotated_frames.append(annotated_frame)
         
         cap.release()
+        
+        if return_frames:
+            return frames_data, annotated_frames
         return frames_data
+    
+    def get_annotated_frame(self, frame, landmarks):
+        """Get a single frame with pose landmarks drawn on it."""
+        annotated = frame.copy()
+        if landmarks:
+            self.mp_drawing.draw_landmarks(
+                annotated,
+                landmarks,
+                self.mp_pose.POSE_CONNECTIONS,
+                self.mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=2),
+                self.mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2)
+            )
+        return annotated
     
     def _extract_keypoints(self, landmarks) -> Dict[str, Optional[Tuple[float, float]]]:
         """

@@ -43,8 +43,8 @@ class RatingCalculator:
             alignment_score * self.weights['alignment']
         )
         
-        # Round to nearest integer
-        overall_score = round(overall_score)
+        # Round to nearest integer and convert to native Python int
+        overall_score = int(round(float(overall_score)))
         
         # Determine letter rating
         rating = self._get_letter_rating(overall_score)
@@ -55,28 +55,28 @@ class RatingCalculator:
         )
         
         return {
-            'overall_score': overall_score,
+            'overall_score': int(overall_score),
             'rating': rating,
             'feedback': feedback,
             'breakdown': {
                 'knee_tracking': {
-                    'score': round(knee_tracking_score),
-                    'weight': self.weights['knee_tracking'],
+                    'score': int(round(float(knee_tracking_score))),
+                    'weight': float(self.weights['knee_tracking']),
                     'feedback': analysis_results['knee_tracking']['feedback']
                 },
                 'back_angle': {
-                    'score': round(back_angle_score),
-                    'weight': self.weights['back_angle'],
+                    'score': int(round(float(back_angle_score))),
+                    'weight': float(self.weights['back_angle']),
                     'feedback': analysis_results['back_angle']['feedback']
                 },
                 'depth': {
-                    'score': round(depth_score),
-                    'weight': self.weights['depth'],
+                    'score': int(round(float(depth_score))),
+                    'weight': float(self.weights['depth']),
                     'feedback': analysis_results['depth']['feedback']
                 },
                 'alignment': {
-                    'score': round(alignment_score),
-                    'weight': self.weights['alignment'],
+                    'score': int(round(float(alignment_score))),
+                    'weight': float(self.weights['alignment']),
                     'feedback': analysis_results['alignment']['feedback']
                 }
             }
