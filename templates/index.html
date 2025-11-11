@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Squat Form Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏋️ Squat Form Analyzer</h1>
+            <p>Upload a video of your squat to get instant form analysis and feedback</p>
+        </header>
+
+        <main>
+            <div class="upload-section">
+                <div class="upload-area" id="uploadArea">
+                    <input type="file" id="videoInput" accept="video/*" style="display: none;">
+                    <div class="upload-content">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <p>Click to upload or drag and drop</p>
+                        <p class="file-info">MP4, AVI, MOV, MKV, or WEBM (max 100MB)</p>
+                    </div>
+                </div>
+
+                <div class="video-preview" id="videoPreview" style="display: none;">
+                    <video id="previewVideo" controls></video>
+                    <button class="btn-analyze" id="analyzeBtn">Analyze Squat Form</button>
+                </div>
+            </div>
+
+            <div class="loading" id="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Analyzing your squat form...</p>
+            </div>
+
+            <div class="results" id="results" style="display: none;">
+                <div class="score-section">
+                    <div class="overall-score">
+                        <div class="score-circle">
+                            <span class="score-value" id="overallScore">0</span>
+                            <span class="score-label">/ 100</span>
+                        </div>
+                        <div class="rating-badge" id="ratingBadge">F</div>
+                    </div>
+                    <h2>Overall Rating</h2>
+                </div>
+
+                <div class="feedback-section">
+                    <h3>Feedback</h3>
+                    <div class="feedback-text" id="feedbackText"></div>
+                </div>
+
+                <div class="metrics-section">
+                    <h3>Detailed Metrics</h3>
+                    <div class="metrics-grid" id="metricsGrid"></div>
+                </div>
+
+                <button class="btn-reset" id="resetBtn">Analyze Another Video</button>
+            </div>
+
+            <div class="error" id="error" style="display: none;">
+                <p id="errorMessage"></p>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
+
